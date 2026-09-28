@@ -1,6 +1,5 @@
 import express from "express";
 const router = express.Router();
-export default router;
 
 import {
   createPlaylist,
@@ -9,6 +8,9 @@ import {
 } from "#db/queries/playlists";
 import { createPlaylistTrack } from "#db/queries/playlists_tracks";
 import { getTracksByPlaylistId } from "#db/queries/tracks";
+import { authenticate } from "../db/queries/helpers/users.js";
+
+router.use(authenticate);
 
 router.get("/", async (req, res) => {
   const playlists = await getPlaylists();
@@ -22,13 +24,17 @@ router.post("/", async (req, res) => {
   if (!name || !description)
     return res.status(400).send("Request body requires: name, description");
 
-  const playlist = await createPlaylist(name, description);
+  const playlist = await createPlaylist(name, description, req.user.id);
   res.status(201).send(playlist);
 });
 
 router.param("id", async (req, res, next, id) => {
   const playlist = await getPlaylistById(id);
   if (!playlist) return res.status(404).send("Playlist not found.");
+
+  if (playlist.user_id !== req.user.id) {
+    return res.status(403).send("You dont own this playlist.");
+  }
 
   req.playlist = playlist;
   next();
@@ -52,3 +58,5 @@ router.post("/:id/tracks", async (req, res) => {
   const playlistTrack = await createPlaylistTrack(req.playlist.id, trackId);
   res.status(201).send(playlistTrack);
 });
+
+export default router;
